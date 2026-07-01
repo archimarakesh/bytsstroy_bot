@@ -98,6 +98,41 @@ def kb_from(options, prefix):
 # ──────────────────────────────────────────────────────────────
 #  /start → приветствие и запрос имени
 # ──────────────────────────────────────────────────────────────
+@dp.message(F.text == "/fields")
+async def cmd_fields(message: Message):
+    """Показывает кастомные поля СДЕЛОК с их ID (для настройки записи в поля)."""
+    if not AMO_TOKEN:
+        await message.answer("AMO_TOKEN не задан.")
+        return
+    headers = {"Authorization": f"Bearer {AMO_TOKEN}"}
+    try:
+        async with aiohttp.ClientSession() as sess:
+            async with sess.get(f"{AMO_BASE}/leads/custom_fields?limit=250",
+                                headers=headers, timeout=30) as r:
+                if r.status != 200:
+                    await message.answer(f"Ошибка amoCRM: {r.status}")
+                    return
+                data = await r.json()
+    except Exception as e:
+        await message.answer(f"Ошибка запроса: {e}")
+        return
+
+    fields = data.get("_embedded", {}).get("custom_fields", [])
+    if not fields:
+        await message.answer("Кастомных полей сделки не найдено. Сначала создай их в amoCRM.")
+        return
+    lines = []
+    for f in fields:
+        lines.append(f"• «{f['name']}» — ID <b>{f['id']}</b> (тип: {f['type']})")
+        # для списков покажем варианты с их ID
+        for en in (f.get("enums") or []):
+            lines.append(f"      – {en['value']} → enum_id {en['id']}")
+    # разбиваем на части, если длинно
+    text = "Поля сделки:\n" + "\n".join(lines)
+    for i in range(0, len(text), 3500):
+        await message.answer(text[i:i+3500])
+
+
 @dp.message(F.text == "/pipelines")
 async def cmd_pipelines(message: Message):
     """Показывает воронки и этапы с их ID (чтобы узнать ID нужного этапа)."""
