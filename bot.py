@@ -56,6 +56,7 @@ AMO_BASE = f"https://{AMO_SUBDOMAIN}.amocrm.ru/api/v4"
 # ID кастомных полей СДЕЛКИ в amoCRM (archimarakesh)
 FIELD_DATE = 1855671        # Дата заказа (тип date — unix timestamp)
 FIELD_SOURCE = 1857195      # Источник (text)
+FIELD_MESSENGER = 1857197   # Мессенджеры (text)
 FIELD_PURPOSE = 1857199     # Назначение (text)
 FIELD_LAYOUT = 1857201      # Планировка (text)
 FIELD_SIZE = 1857203        # Размер (text)
@@ -311,6 +312,7 @@ async def send_lead(message: Message, state: FSMContext, consult: bool):
     fields = {
         FIELD_DATE: int(time.time()),          # date-поле amoCRM = unix timestamp
         FIELD_SOURCE: "Бот Телеграмм",
+        FIELD_MESSENGER: "Telegram",
     }
 
     if consult:
