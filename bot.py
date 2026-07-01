@@ -348,9 +348,9 @@ async def send_lead(message: Message, state: FSMContext, consult: bool):
 
 async def create_amo_lead(title: str, name: str, phone: str, fields: dict) -> bool:
     """
-    Создаёт сделку в amoCRM через API v4 (метод «сложное добавление»):
-    сделка + контакт с телефоном + кастомные поля сделки одним запросом.
-    fields: {field_id: value}. Возвращает True при успехе.
+    Создаёт НЕРАЗОБРАННУЮ заявку в amoCRM (unsorted/forms).
+    Заявка попадает в «Неразобранное» воронки и висит без ответственного,
+    пока менеджер не нажмёт «Принять». fields: {field_id: value}.
     """
     if not AMO_TOKEN:
         logging.error("amoCRM: нет AMO_TOKEN — заявка не отправлена.")
@@ -361,30 +361,23 @@ async def create_amo_lead(title: str, name: str, phone: str, fields: dict) -> bo
         "Content-Type": "application/json",
     }
 
-    # Сделка с встроенным контактом (complex create)
-    lead = {"name": title}
-    if AMO_PIPELINE_ID:
-        try:
-            lead["pipeline_id"] = int(AMO_PIPELINE_ID)
-        except ValueError:
-            pass
-    if AMO_STATUS_ID:
-        try:
-            lead["status_id"] = int(AMO_STATUS_ID)
-        except ValueError:
-            pass
-
-    # Кастомные поля сделки (Дата заказа, Источник, Назначение, Планировка, Размер, Установка)
+    # Кастомные поля сделки
     cfv = []
     for fid, val in fields.items():
         if val is None or val == "":
             continue
         cfv.append({"field_id": int(fid), "values": [{"value": val}]})
+
+    lead = {"name": title}
     if cfv:
         lead["custom_fields_values"] = cfv
+    if AMO_PIPELINE_ID:
+        try:
+            lead["pipeline_id"] = int(AMO_PIPELINE_ID)
+        except ValueError:
+            pass
 
-    # Контакт с телефоном (поле PHONE — стандартное, code=PHONE)
-    contact_embedded = {
+    contact = {
         "name": name,
         "custom_fields_values": [
             {
@@ -393,17 +386,40 @@ async def create_amo_lead(title: str, name: str, phone: str, fields: dict) -> bo
             }
         ],
     }
-    lead["_embedded"] = {"contacts": [contact_embedded]}
 
-    payload = [lead]  # API v4 ждёт массив сделок
+    # Формат unsorted/forms: заявка с «формы»
+    uid = f"tg-{int(time.time()*1000)}"
+    unsorted = {
+        "source_name": "Telegram-бот БытСтрой",
+        "source_uid": uid,
+        "created_at": int(time.time()),
+        "metadata": {
+            "form_id": "bytstroy_bot",
+            "form_name": "Заявка из Telegram",
+            "form_page": "https://t.me/bytsstroy_bot",
+            "ip": "0.0.0.0",
+            "form_sent_at": int(time.time()),
+        },
+        "_embedded": {
+            "leads": [lead],
+            "contacts": [contact],
+        },
+    }
+    if AMO_PIPELINE_ID:
+        try:
+            unsorted["pipeline_id"] = int(AMO_PIPELINE_ID)
+        except ValueError:
+            pass
+
+    payload = [unsorted]
 
     try:
         async with aiohttp.ClientSession() as sess:
-            async with sess.post(f"{AMO_BASE}/leads/complex",
+            async with sess.post(f"{AMO_BASE}/leads/unsorted/forms",
                                  headers=headers, json=payload, timeout=30) as r:
                 text = await r.text()
                 if r.status not in (200, 201):
-                    logging.error("amoCRM leads/complex %s: %s", r.status, text[:400])
+                    logging.error("amoCRM unsorted %s: %s", r.status, text[:400])
                     return False
             return True
     except Exception as e:
