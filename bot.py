@@ -322,7 +322,7 @@ async def send_lead(message: Message, state: FSMContext, consult: bool):
     # Поля сделки: Дата заказа (сейчас), Источник — всегда.
     fields = {
         FIELD_DATE: int(time.time()),          # date-поле amoCRM = unix timestamp
-        FIELD_SOURCE: "Бот Телеграмм",
+        FIELD_SOURCE: "Telegram - Бот",
         FIELD_MESSENGER: "Telegram",
     }
 
@@ -406,14 +406,17 @@ async def create_amo_lead(title: str, name: str, phone: str, fields: dict, note:
 
     # Формат unsorted/forms: заявка с «формы»
     uid = f"tg-{int(time.time()*1000)}"
+    src_name = fields.get(FIELD_SOURCE) or "Telegram - Бот"
+    # Вверху карточки «Неразобранного» показываем номер телефона клиента.
+    top_label = phone or src_name
     unsorted = {
-        "source_name": "Telegram-бот БытСтрой",
+        "source_name": top_label,
         "source_uid": uid,
         "created_at": int(time.time()),
         "metadata": {
             "form_id": "bytstroy_bot",
-            "form_name": "Заявка из Telegram",
-            "form_page": "https://t.me/bytsstroy_bot",
+            "form_name": src_name,
+            "form_page": src_name,
             "ip": "0.0.0.0",
             "form_sent_at": int(time.time()),
         },
