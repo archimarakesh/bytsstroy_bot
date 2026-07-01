@@ -77,6 +77,7 @@ class Form(StatesGroup):
     layout = State()        # планировка
     size = State()          # размер
     term = State()          # срок установки
+    question = State()      # текст вопроса (для консультации)
 
 
 # ──────────────────────────────────────────────────────────────
@@ -235,8 +236,18 @@ async def show_menu(message: Message, state: FSMContext):
 async def choose_consult(cb: CallbackQuery, state: FSMContext):
     await cb.message.edit_reply_markup(reply_markup=None)
     await state.update_data(kind="Консультация")
-    await send_lead(cb.message, state, consult=True)
+    await cb.message.answer(
+        "Опишите кратко ваш вопрос — что вас интересует?\n"
+        "(например: нужна бытовка под инструмент, интересует цена и сроки)"
+    )
+    await state.set_state(Form.question)
     await cb.answer()
+
+
+@dp.message(Form.question, F.text)
+async def got_question(message: Message, state: FSMContext):
+    await state.update_data(question=message.text.strip())
+    await send_lead(message, state, consult=True)
 
 
 @dp.callback_query(Form.menu, F.data == "menu|config")
@@ -315,9 +326,10 @@ async def send_lead(message: Message, state: FSMContext, consult: bool):
         FIELD_MESSENGER: "Telegram",
     }
 
+    note = ""
     if consult:
         title = f"Заявка (консультация) — {name}"
-        # для консультации конфигурации нет — поля назначения и т.д. не заполняем
+        note = data.get("question", "")   # текст вопроса клиента
     else:
         title = f"Заявка (конфигурация) — {name}"
         fields[FIELD_PURPOSE] = data.get("use", "")
@@ -325,7 +337,7 @@ async def send_lead(message: Message, state: FSMContext, consult: bool):
         fields[FIELD_SIZE] = data.get("size", "")
         fields[FIELD_INSTALL] = data.get("term", "")
 
-    ok = await create_amo_lead(title=title, name=name, phone=phone, fields=fields)
+    ok = await create_amo_lead(title=title, name=name, phone=phone, fields=fields, note=note)
 
     if ok:
         contact_line = f"\n\n📞 Наш телефон: {SHOP_PHONE}" if SHOP_PHONE else ""
@@ -346,7 +358,7 @@ async def send_lead(message: Message, state: FSMContext, consult: bool):
     await state.clear()
 
 
-async def create_amo_lead(title: str, name: str, phone: str, fields: dict) -> bool:
+async def create_amo_lead(title: str, name: str, phone: str, fields: dict, note: str = "") -> bool:
     """
     Создаёт НЕРАЗОБРАННУЮ заявку в amoCRM (unsorted/forms).
     Заявка попадает в «Неразобранное» воронки и висит без ответственного,
@@ -371,6 +383,11 @@ async def create_amo_lead(title: str, name: str, phone: str, fields: dict) -> bo
     lead = {"name": title}
     if cfv:
         lead["custom_fields_values"] = cfv
+    if note:
+        lead["_embedded"] = {"notes": [{
+            "note_type": "common",
+            "params": {"text": note},
+        }]}
     if AMO_PIPELINE_ID:
         try:
             lead["pipeline_id"] = int(AMO_PIPELINE_ID)
