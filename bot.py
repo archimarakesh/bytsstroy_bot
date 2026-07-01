@@ -98,6 +98,38 @@ def kb_from(options, prefix):
 # ──────────────────────────────────────────────────────────────
 #  /start → приветствие и запрос имени
 # ──────────────────────────────────────────────────────────────
+@dp.message(F.text == "/pipelines")
+async def cmd_pipelines(message: Message):
+    """Показывает воронки и этапы с их ID (чтобы узнать ID нужного этапа)."""
+    if not AMO_TOKEN:
+        await message.answer("AMO_TOKEN не задан.")
+        return
+    headers = {"Authorization": f"Bearer {AMO_TOKEN}"}
+    try:
+        async with aiohttp.ClientSession() as sess:
+            async with sess.get(f"{AMO_BASE}/leads/pipelines",
+                                headers=headers, timeout=30) as r:
+                if r.status != 200:
+                    await message.answer(f"Ошибка amoCRM: {r.status}")
+                    return
+                data = await r.json()
+    except Exception as e:
+        await message.answer(f"Ошибка запроса: {e}")
+        return
+
+    pipelines = data.get("_embedded", {}).get("pipelines", [])
+    lines = []
+    for p in pipelines:
+        lines.append(f"\n🔹 Воронка «{p['name']}» — ID {p['id']}")
+        for s in p.get("_embedded", {}).get("statuses", []):
+            lines.append(f"    • «{s['name']}» — ID этапа <b>{s['id']}</b>")
+    await message.answer(
+        "Воронки и этапы:\n" + "\n".join(lines) +
+        "\n\nВпиши ID нужного этапа в переменную AMO_STATUS_ID на Railway."
+        if lines else "Воронки не найдены."
+    )
+
+
 @dp.message(CommandStart())
 async def start(message: Message, state: FSMContext):
     await state.clear()
@@ -360,6 +392,10 @@ def await_json(text: str):
 # ──────────────────────────────────────────────────────────────
 async def main():
     logging.info("БытСтрой Сервис бот запущен.")
+    # Сбрасываем webhook (если был установлен ранее) — иначе polling
+    # конфликтует: "can't use getUpdates while webhook is active".
+    # drop_pending_updates=True — не тащим накопившиеся старые апдейты.
+    await bot.delete_webhook(drop_pending_updates=True)
     await dp.start_polling(bot)
 
 
