@@ -54,13 +54,14 @@ if not AMO_TOKEN:
 AMO_BASE = f"https://{AMO_SUBDOMAIN}.amocrm.ru/api/v4"
 
 # ID кастомных полей СДЕЛКИ в amoCRM (archimarakesh)
+# ВНИМАНИЕ: поля конфигуратора пересозданы 03.07.2026 — ID новые.
 FIELD_DATE = 1855671        # Дата заказа (тип date — unix timestamp)
 FIELD_SOURCE = 1857195      # Источник (text)
 FIELD_MESSENGER = 1857197   # Мессенджеры (text)
-FIELD_PURPOSE = 1857199     # Назначение (text)
-FIELD_LAYOUT = 1857201      # Планировка (text)
-FIELD_SIZE = 1857203        # Размер (text)
-FIELD_INSTALL = 1857205     # Установка (text)
+FIELD_PURPOSE = 1863395     # Назначение (text)
+FIELD_LAYOUT = 1863397      # Планировка (text)
+FIELD_SIZE = 1863399        # Размер (text)
+FIELD_INSTALL = 1863401     # Срок установки (text)
 
 bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
 dp = Dispatcher(storage=MemoryStorage())
